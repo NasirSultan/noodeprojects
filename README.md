@@ -45,13 +45,19 @@ This special middleware handles errors and includes **four** parameters: `(err, 
 ## Project Structure
 
 ```
-/middleware
-  isAdmin.js
-/models
-  Item.js
-server.js
-.env
-package.json
+your-project/
+│
+├── middleware/
+│   ├── isAdmin.js           
+│ 
+│
+├── models/
+│   └── Item.js              // Mongoose model
+│
+├── .env                     // Environment variables
+├── server.js                // Main Express app
+├── package.json             // Project dependencies
+
 ```
 
 ---
@@ -189,9 +195,3 @@ node server.js
 | Authorization  | Allows access based on user roles            |
 | Validation     | Ensures data completeness and correctness    |
 | Error Handling | Catches and responds to errors in the app    |
-
----
-
-Feel free to extend this example with authentication (JWT), advanced validation using libraries like Joi or Zod, and centralized error logging.
-
-Let me know if you want a version that uses TypeScript or adds tests!

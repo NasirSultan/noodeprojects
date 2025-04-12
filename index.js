@@ -2,7 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-
+const isAdmin = require("./middleware/isAdmin");
 const Item = require("./models/Item");
 
 const app = express();
@@ -22,28 +22,24 @@ mongoose
   .then(() => console.log("Connected to MongoDB"))
   .catch((err) => console.error("MongoDB Connection Error:", err));
 
-app.get("/", (req, res) => res.send("API is running"));
 
-app.get("/api/items", async (req, res) => {
-  try {
-    const { page = 1, limit = 4, search = "" } = req.query;
-    const query = search ? { name: { $regex: search, $options: "i" } } : {};
+app.get('/role',(req,res)=>{
 
-    const totalItems = await Item.countDocuments(query);
-    const items = await Item.find(query)
-      .skip((page - 1) * limit)
-      .limit(parseInt(limit));
+  Item.find().then(data=>res.json(data)).catch(erro=>res.json(erro));
 
-    res.json({
-      page: parseInt(page),
-      limit: parseInt(limit),
-      totalPages: Math.ceil(totalItems / limit),
-      totalItems,
-      data: items,
-    });
-  } catch (error) {
-    res.status(500).json({ message: "Server Error", error });
-  }
+})
+
+
+app.post("/role", isAdmin, (req, res) => {
+  const { name, role } = req.body;
+
+  const newItem = new Item({ name, role });
+
+  newItem
+    .save()
+    .then(savedItem => res.status(201).json(savedItem))
+    .catch(err => res.status(500).json({ error: "Server error" }));
 });
+
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

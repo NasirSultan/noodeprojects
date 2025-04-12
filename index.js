@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 
 const Item = require("./models/Item");
+const req = require("express/lib/request");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -46,4 +47,42 @@ app.get("/api/items", async (req, res) => {
   }
 });
 
+app.post("/api/items", async (req, res) => {
+  try {
+    const { name, price } = req.body;
+
+    // Validate input
+    if (!name || !price) {
+      return res.status(400).json({ message: "Name and price are required." });
+    }
+
+    // Create new item
+    const newItem = new Item({ name, price });
+
+    // Save to DB
+    const savedItem = await newItem.save();
+
+    res.status(201).json(savedItem);
+  } catch (error) {
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
+});
+
+
+
+
+
+
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+
+
+
+
+app.post("/post", async(req,req)=>{
+        const {name,price}=req.body;
+        const newitem= new item({name ,price});
+        const saveitem=await newitem.save()
+        req.status(201).json(saveitem);
+
+});

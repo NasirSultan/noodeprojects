@@ -22,6 +22,36 @@ exports.getMyProducts = async (req, res) => {
 };
 
 exports.getAllProducts = async (req, res) => {
-  const products = await Product.find().populate('user', 'username email');
-  res.json(products);
+  try {
+    const result = await Product.aggregate([
+      {
+        $lookup: {
+          from: "users",
+          localField: "user",
+          foreignField: "_id",
+          as: "userInfo"
+        }
+      },
+      { $unwind: "$userInfo" },
+      {
+        $group: {
+          _id: "$user",
+          username: { $first: "$userInfo.username" },
+          email: { $first: "$userInfo.email" },
+          totalAmount: { $sum: "$price" },
+          products: {
+            $push: {
+              name: "$name",
+              price: "$price",
+              _id: "$_id"
+            }
+          }
+        }
+      }
+    ]);
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 };

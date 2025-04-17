@@ -16,13 +16,13 @@ exports.registerAdmin = async (req, res) => {
 
 
 exports.registerUser = async (req, res) => {
-  const { username, email, password } = req.body;
+  const { username, email,number, password } = req.body;
 
   const exists = await User.findOne({ email });
   if (exists) return res.status(400).send('User already exists');
 
   const hashed = await bcrypt.hash(password, 10);
-  const user = new User({ username, email, password: hashed, role: 'user' });
+  const user = new User({ username, email,number, password: hashed, role: 'user' });
   await user.save();
   res.status(201).send('User registered');
 };

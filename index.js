@@ -14,6 +14,7 @@ app.use(express.json());
 
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/products', require('./routes/product'));
+app.use('/api/log', require('./routes/log'));
 
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {

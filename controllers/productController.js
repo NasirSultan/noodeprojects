@@ -1,36 +1,37 @@
 const Product = require('../models/Product');
 const Log = require('../models/Log');
 const User = require('../models/User');
-exports.addProduct = async (req, res) => {
-  const { name, price, quantity } = req.body;
 
-  const product = new Product({
-    name,
-    price,
-    quantity,
-    totalAmount: price * quantity, // if you want to store this
-    user: req.user._id
-  });
+// exports.addProduct = async (req, res) => {
+//   const { name, price, quantity } = req.body;
 
-  await product.save();
+//   const product = new Product({
+//     name,
+//     price,
+//     quantity,
+//     totalAmount: price * quantity, // if you want to store this
+//     user: req.user._id
+//   });
 
-  // ✅ Log with full product details (snapshot)
-  const log = new Log({
-    action: 'add',
-    user: req.user._id,
-    product: product._id, // keep reference
-    productSnapshot: {
-      name: product.name,
-      price: product.price,
-      quantity: product.quantity,
-      totalAmount: product.totalAmount
-    }
-  });
+//   await product.save();
 
-  await log.save();
+//   // ✅ Log with full product details (snapshot)
+//   const log = new Log({
+//     action: 'add',
+//     user: req.user._id,
+//     product: product._id, // keep reference
+//     productSnapshot: {
+//       name: product.name,
+//       price: product.price,
+//       quantity: product.quantity,
+//       totalAmount: product.totalAmount
+//     }
+//   });
 
-  res.status(201).json(product);
-};
+//   await log.save();
+
+//   res.status(201).json(product);
+// };
 
 
 exports.deleteProduct = async (req, res) => {
@@ -173,58 +174,101 @@ exports.getUserProductsById = async (req, res) => {
 };
 
 
+
+
+// controllers/productController.js
+
+
+// API to delete a product for a specific user
 exports.deleteProductadmin = async (req, res) => {
-  const { productId, user } = req.body;
-
   try {
-    // ✅ Ensure only admin can use this route
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Access denied. Admins only.' });
-    }
+    const { userId } = req.body;  // Getting userId from the request body
+    if (!userId) return res.status(400).send('User ID is required');
 
-    if (!user) {
-      return res.status(400).json({ error: 'Target user ID is required.' });
-    }
+    const product = await Product.findOne({ _id: req.params.id, user: userId }); // Using userId from the request body
+    if (!product) return res.status(404).send('Product not found');
 
-    if (!productId) {
-      return res.status(400).json({ error: 'Product ID is required.' });
-    }
-
-    const product = await Product.findOne({ _id: productId, user });
-
-    if (!product) {
-      return res.status(404).json({ error: 'Product not found for the specified user.' });
-    }
-
-    // Additional check to ensure the product belongs to the user
-    if (product.user.toString() !== user) {
-      return res.status(403).json({ error: 'You cannot delete this product.' });
-    }
-
-    // Save snapshot before deletion for logging
-    const productSnapshot = {
-      name: product.name,
-      price: product.price,
-      quantity: product.quantity,
-      totalAmount: product.totalAmount
-    };
-
-    await product.deleteOne(); // or product.remove();
-
-    // ✅ Log the delete action
-    const log = new Log({
+    // Log with correct product ID and snapshot data
+    await Log.create({
       action: 'delete',
-      user: user,
-      product: productId,
-      productSnapshot
+      product: product._id, // ✅ This should be ObjectId, not string
+      user: userId,
+      productSnapshot: {
+        name: product.name,
+        price: product.price,
+        quantity: product.quantity,
+        totalAmount: product.totalAmount
+      }
     });
 
-    await log.save();
+    await product.deleteOne();
 
-    res.status(200).json({ message: 'Product deleted successfully.' });
+    res.send('Product deleted');
   } catch (error) {
-    console.error('Error deleting product:', error);
-    res.status(500).json({ error: 'Server error while deleting product' });
+    console.error(error);
+    res.status(500).send('Server error while deleting product');
   }
 };
 
+
+
+
+exports.addProduct = async (req, res) => {
+  const { name, price, quantity, paidPrice } = req.body;
+
+  // Ensure paidPrice is provided if necessary
+  if (!paidPrice) {
+    return res.status(400).json({ message: "Paid Price is required" });
+  }
+
+  // Create a new product with the provided data, without storing paidPrice
+  const product = new Product({
+    name,
+    price, // Only store price and quantity in the product
+    quantity,
+    totalAmount: price * quantity, // Total amount based on price and quantity
+    user: req.user._id, // Assign product to the logged-in user
+  });
+
+  try {
+    // Save product to the database
+    await product.save();
+
+    // Log the "add" action (without paidPrice)
+    const logAdd = new Log({
+      action: 'add',
+      user: req.user._id,
+      product: product._id,
+      productSnapshot: {
+        name: product.name,
+        price: product.price,
+        quantity: product.quantity,
+        totalAmount: product.totalAmount // No paidPrice in this log
+      }
+    });
+
+    // Log the "delete" action (with paidPrice)
+    const logDelete = new Log({
+      action: 'delete',
+      user: req.user._id,
+      product: product._id,
+      productSnapshot: {
+        name: product.name,
+        price: paidPrice,  // Log paidPrice here for delete action
+        quantity: product.quantity,
+        totalAmount: product.totalAmount
+      }
+    });
+
+    // Save logs to the database
+    await logAdd.save();
+    await logDelete.save();
+
+    // Send response back to the client
+    res.status(201).json(product);
+
+  } catch (error) {
+    console.error("Error while adding product:", error);
+    res.status(500).json({ message: "Failed to add product" });
+  }
+};

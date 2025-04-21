@@ -11,5 +11,5 @@ router.get('/user/:userId', auth, isAdmin, getUserProducts);
 router.post('/admin', auth, addProducadmin); // Admin can see user's products
 router.get('/getuser', auth, getAllUsers); // Admin can see user's products
 router.get('/getuserproducts/:id', auth, getUserProductsById); 
-router.delete('/deleteProductadmin', auth, isAdmin, deleteProductadmin); 
+router.delete('/deleteProductAdmin/:id', deleteProductadmin); 
 module.exports = router;

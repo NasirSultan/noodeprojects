@@ -61,3 +61,69 @@ exports.deleteAllLogs = async (req, res) => {
     res.status(500).json({ error: 'Server error while deleting logs' });
   }
 };
+
+
+
+
+exports.getProductLogByBody = async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    // Check if userId is provided
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required in request body' });
+    }
+
+    const logs = await Log.find({ user: userId })
+      .select('-__v')
+      .populate('user', 'username')
+      .sort({ timestamp: -1 });
+
+    // Calculate expiration dates based on action
+    const logsWithExpiration = logs.map(log => {
+      let expirationDate;
+
+      if (log.action === 'add') {
+        expirationDate = new Date(log.timestamp.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      } else if (log.action === 'delete') {
+        expirationDate = new Date(log.timestamp.getTime() + 1 * 24 * 60 * 60 * 1000); // 1 day
+      }
+
+      return {
+        ...log.toObject(),
+        expirationDate
+      };
+    });
+
+    res.json(logsWithExpiration);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error while fetching product logs' });
+  }
+};
+
+
+
+
+
+
+
+
+
+
+
+exports.getLast7DaysStats = async (req, res) => {
+  try {
+    // Get all logs from the Log collection, populating user and product details
+    const logs = await Log.find()
+     
+      .populate('product', 'name price'); // Populate product info (adjust fields as needed)
+
+    // Simply return the logs without aggregation or summary calculation
+    res.json({ logs });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+
+

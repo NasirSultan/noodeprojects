@@ -13,14 +13,6 @@ const logSchema = new mongoose.Schema({
   timestamp: { type: Date, default: Date.now }
 });
 
-// Custom logic to set the expiration date
-logSchema.pre('save', function(next) {
-  const expirationTime = this.action === 'add' ? 60 * 60 * 24 * 7 : 60 * 60 * 24 * 1; // 7 days for add, 3 days for delete
-  this.timestamp = new Date(Date.now() + expirationTime * 1000); // Set the expiration timestamp
-  next();
-});
-
-// TTL index that uses the timestamp
-logSchema.index({ timestamp: 1 }, { expireAfterSeconds: 0 });
+// Removed pre-save hook and TTL index
 
 module.exports = mongoose.model('Log', logSchema);

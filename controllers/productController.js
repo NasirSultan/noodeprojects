@@ -2,6 +2,8 @@ const Product = require('../models/Product');
 const Log = require('../models/Log');
 const User = require('../models/User');
 
+
+
 // exports.addProduct = async (req, res) => {
 //   const { name, price, quantity } = req.body;
 
@@ -104,7 +106,7 @@ exports.getUserProducts = async (req, res) => {
 
 
 exports.addProducadmin = async (req, res) => {
-  const { name, price, quantity, user } = req.body;
+  const { name, price, paidPrice, user } = req.body;
 
   try {
     // Optional: Ensure only admin can use this route
@@ -112,38 +114,53 @@ exports.addProducadmin = async (req, res) => {
       return res.status(403).json({ error: 'Access denied. Admins only.' });
     }
 
-    if (!user) {
-      return res.status(400).json({ error: 'Target user ID is required.' });
+    // Ensure required fields
+    if (!user || !name || !price || !paidPrice) {
+      return res.status(400).json({ error: 'All fields (name, price, paidPrice, user) are required.' });
     }
 
     const product = new Product({
       name,
       price,
-      quantity,
-      totalAmount: price * quantity,
-      user // 👈 this is the target user ID from body
+      paidPrice,
+      totalAmount: price, // No quantity, so total = price
+      user,
+      status: 'approved' // Admin adds are instantly approved
     });
 
     await product.save();
 
-    // ✅ Log the action under the target user ID (not the admin)
-    const log = new Log({
+    // Log the "add" action under the target user
+    const logAdd = new Log({
       action: 'add',
-      user: user, // 👈 set to the input user ID
+      user,
       product: product._id,
       productSnapshot: {
         name: product.name,
         price: product.price,
-        quantity: product.quantity,
         totalAmount: product.totalAmount
       }
     });
 
-    await log.save();
+    // Log the "delete" action with paidPrice
+    const logDelete = new Log({
+      action: 'delete',
+      user,
+      product: product._id,
+      productSnapshot: {
+        name: product.name,
+        price: product.paidPrice,
+        totalAmount: product.totalAmount
+      }
+    });
+
+    await logAdd.save();
+    await logDelete.save();
 
     res.status(201).json(product);
+
   } catch (error) {
-    console.error('Error adding product:', error);
+    console.error('Error adding product by admin:', error);
     res.status(500).json({ error: 'Server error while adding product' });
   }
 };
@@ -213,62 +230,157 @@ exports.deleteProductadmin = async (req, res) => {
 
 
 
-exports.addProduct = async (req, res) => {
-  const { name, price, quantity, paidPrice } = req.body;
+// exports.addProduct = async (req, res) => {
+//   const { name, price, quantity, paidPrice } = req.body;
 
-  // Ensure paidPrice is provided if necessary
+//   // Ensure paidPrice is provided if necessary
+//   if (!paidPrice) {
+//     return res.status(400).json({ message: "Paid Price is required" });
+//   }
+
+//   // Create a new product with the provided data, without storing paidPrice
+//   const product = new Product({
+//     name,
+//     price, // Only store price and quantity in the product
+//     quantity,
+//     totalAmount: price * quantity, // Total amount based on price and quantity
+//     user: req.user._id, // Assign product to the logged-in user
+//   });
+
+//   try {
+//     // Save product to the database
+//     await product.save();
+
+//     // Log the "add" action (without paidPrice)
+//     const logAdd = new Log({
+//       action: 'add',
+//       user: req.user._id,
+//       product: product._id,
+//       productSnapshot: {
+//         name: product.name,
+//         price: product.price,
+//         quantity: product.quantity,
+//         totalAmount: product.totalAmount // No paidPrice in this log
+//       }
+//     });
+
+//     // Log the "delete" action (with paidPrice)
+//     const logDelete = new Log({
+//       action: 'delete',
+//       user: req.user._id,
+//       product: product._id,
+//       productSnapshot: {
+//         name: product.name,
+//         price: paidPrice,  // Log paidPrice here for delete action
+//         quantity: product.quantity,
+//         totalAmount: product.totalAmount
+//       }
+//     });
+
+//     // Save logs to the database
+//     await logAdd.save();
+//     await logDelete.save();
+
+//     // Send response back to the client
+//     res.status(201).json(product);
+
+//   } catch (error) {
+//     console.error("Error while adding product:", error);
+//     res.status(500).json({ message: "Failed to add product" });
+//   }
+// };
+
+
+
+
+
+
+
+
+
+exports.addProduct = async (req, res) => {
+  const { name, price, paidPrice } = req.body;
+
   if (!paidPrice) {
     return res.status(400).json({ message: "Paid Price is required" });
   }
 
-  // Create a new product with the provided data, without storing paidPrice
   const product = new Product({
     name,
-    price, // Only store price and quantity in the product
-    quantity,
-    totalAmount: price * quantity, // Total amount based on price and quantity
-    user: req.user._id, // Assign product to the logged-in user
+    price,
+    paidPrice, // Store for future use, not for logging now
+    totalAmount: price, // price without quantity (quantity removed)
+    user: req.user._id,
+    status: "pending" // Mark as pending until admin approval
   });
 
   try {
-    // Save product to the database
+    await product.save();
+    res.status(201).json({ message: "Product added, waiting for admin approval", product });
+  } catch (error) {
+    console.error("Error while adding product:", error);
+    res.status(500).json({ message: "Failed to add product" });
+  }
+};
+
+
+
+
+exports.getAllPendingProducts = async (req, res) => {
+  try {
+    const pendingProducts = await Product.find({ status: "pending" }).populate('user', 'name email');
+    res.status(200).json(pendingProducts);
+  } catch (error) {
+    console.error("Error fetching all pending products:", error);
+    res.status(500).json({ message: "Failed to fetch products" });
+  }
+};
+
+
+exports.approveProduct = async (req, res) => {
+  const { productId } = req.params;
+
+  try {
+    const product = await Product.findById(productId);
+
+    if (!product || product.status !== "pending") {
+      return res.status(404).json({ message: "Product not found or already approved" });
+    }
+
+    // Mark product as approved
+    product.status = "approved";
     await product.save();
 
-    // Log the "add" action (without paidPrice)
+    // Create logs after approval
     const logAdd = new Log({
       action: 'add',
-      user: req.user._id,
+      user: product.user,
       product: product._id,
       productSnapshot: {
         name: product.name,
         price: product.price,
-        quantity: product.quantity,
-        totalAmount: product.totalAmount // No paidPrice in this log
-      }
-    });
-
-    // Log the "delete" action (with paidPrice)
-    const logDelete = new Log({
-      action: 'delete',
-      user: req.user._id,
-      product: product._id,
-      productSnapshot: {
-        name: product.name,
-        price: paidPrice,  // Log paidPrice here for delete action
-        quantity: product.quantity,
         totalAmount: product.totalAmount
       }
     });
 
-    // Save logs to the database
+    const logDelete = new Log({
+      action: 'delete',
+      user: product.user,
+      product: product._id,
+      productSnapshot: {
+        name: product.name,
+        price: product.paidPrice,
+        totalAmount: product.totalAmount
+      }
+    });
+
     await logAdd.save();
     await logDelete.save();
 
-    // Send response back to the client
-    res.status(201).json(product);
+    res.status(200).json({ message: "Product approved and logs created" });
 
   } catch (error) {
-    console.error("Error while adding product:", error);
-    res.status(500).json({ message: "Failed to add product" });
+    console.error("Error during approval:", error);
+    res.status(500).json({ message: "Failed to approve product" });
   }
 };

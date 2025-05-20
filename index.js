@@ -6,6 +6,14 @@ const { Blockchain, Transaction } = require('./blockchain');
 const app = express();
 const PORT = 3000;
 const DATA_FILE = './chain.json';
+const cors = require('cors');
+
+// Allow only http://localhost:3001 to access your backend
+app.use(cors({
+  origin: 'http://localhost:3001',
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type'],
+}));
 
 // Middleware
 app.use(bodyParser.json());
